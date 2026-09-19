@@ -885,7 +885,7 @@
       if (devLoadEl && latest.load != null) devLoadEl.innerText = `${Number(latest.load).toFixed(1)} kW`;
 
       const compScore = latest.composite_score != null ? latest.composite_score : 0.0;
-      const healthPct = Math.max(0, (1.0 - compScore) * 100);
+      const healthPct = latest.health_score != null ? latest.health_score : Math.max(0, (1.0 - compScore) * 100);
 
       const healthEl = document.getElementById('valHeaderHealth');
       if (healthEl) {
@@ -1232,13 +1232,13 @@
         for (let i = 15; i >= 0; i--) {
           const ts = new Date(nowMs - i * stepMs).toISOString();
           chillers.forEach(c => {
-            const noise = Math.sin(i * 0.5) * 2.0;
+            const noise = Math.sin(i * 0.5) * 0.5; // Reduced noise to mimic healthy operation
             rows.push({
               chiller_id: c.id,
               timestamp: ts,
               energy: Number((c.baseEnergy + noise).toFixed(2)),
-              load: Number((c.baseLoad + noise * 3).toFixed(2)),
-              flow: Number((c.baseFlow + noise * 0.5).toFixed(2)),
+              load: Number((c.baseLoad + noise * 0.8).toFixed(2)), // Load varies naturally, not drastically
+              flow: Number((c.baseFlow + noise * 0.2).toFixed(2)),
               cw_temp: Number((c.cwTemp + noise * 0.1).toFixed(2)),
               outside_temp: 85.0,
               dew_point: 76.0,
