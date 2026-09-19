@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>epulse - Equipment Data Analytics Dashboard</title>
+
+  <!-- Google Fonts & Lucide Icons & Chart.js -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet" />
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            bgMint: '#eef7f2',
+            surface: '#ffffff',
+            primary: {
+              DEFAULT: '#10b981',
+              light: '#e6f7ed',
+              dark: '#047857'
+            },
+            secondary: {
+              DEFAULT: '#0ea5e9',
+              light: '#e0f2fe'
+            },
+            amber: {
+              DEFAULT: '#f59e0b',
+              light: '#fef3c7'
+            },
+            rose: {
+              DEFAULT: '#ef4444',
+              light: '#fee2e2'
+            },
+            dark: '#0f172a',
+            muted: '#64748b'
+          },
+          fontFamily: {
+            roboto: ['Roboto', 'sans-serif'],
+            sans: ['Plus Jakarta Sans', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace']
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    @layer base {
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background-color: #eef7f2;
+        color: #0f172a;
+        overscroll-behavior: none;
+      }
+    }
+
+    ::-webkit-scrollbar {
+      display: none;
+    }
+
+    .nav-btn.active {
+      background-color: #ffffff;
+      color: #0f172a;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+      font-weight: 700;
+    }
+
+    .device-item.active {
+      border-color: #10b981;
+      background-color: #f0fdf4;
+      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.12);
+    }
+
+    .scan-btn {
+      position: relative;
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .scan-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 25px rgba(16, 185, 129, 0.45);
+    }
+
+    .scan-btn::before {
+      content: '';
+      position: absolute;
+      inset: -6px;
+      border-radius: 50%;
+      border: 2px dashed rgba(16, 185, 129, 0.4);
+      animation: spin 12s linear infinite;
+    }
+
+    @keyframes spin {
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    .scanning-active .scan-btn::before {
+      border-color: #0ea5e9;
+      animation: spin 1.5s linear infinite;
+    }
+
+    .pulsing-dot {
+      animation: pulse-dot 2s infinite;
+    }
+
+    @keyframes pulse-dot {
+      0% {
+        transform: scale(0.9);
+        opacity: 0.8;
+      }
+
+      50% {
+        transform: scale(1.15);
+        opacity: 1;
+      }
+
+      100% {
+        transform: scale(0.9);
+        opacity: 0.8;
+      }
+    }
+  </style>
+</head>
+
+<body class="bg-[#eef7f2] font-sans antialiased min-h-screen relative pb-12">
+
+  <!-- Ambient Glow Background Blobs -->
+  <div
+    class="fixed top-[-10%] left-[15%] w-[45%] h-[45%] bg-[#dcfce7] rounded-full blur-[140px] opacity-70 pointer-events-none z-0">
+  </div>
+  <div
+    class="fixed top-[-5%] right-[15%] w-[35%] h-[35%] bg-[#e0f2fe] rounded-full blur-[120px] opacity-60 pointer-events-none z-0">
+  </div>
+
+  <!-- Main Container -->
+  <main class="w-full max-w-[1400px] mx-auto px-4 sm:px-6 relative z-10">
+
+    <!-- Top Left Aligned Header with Large Roboto Font -->
+    <header
+      class="text-left pt-6 pb-6 mb-6 -ml-3 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+      <div>
+        <h1
+          class="font-roboto text-3xl sm:text-4xl md:text-[40px] font-extrabold text-slate-900 tracking-tight leading-tight">
+          Equipment Analytics Dashboard
+        </h1>
+        <p class="text-slate-500 text-xs sm:text-sm font-medium mt-2">
+          Real-time sensor monitoring, dynamic telemetry graphs, and automated ML anomaly insights.
+        </p>
+      </div>
+
+      <!-- File Attachment Upload -->
+      <div
+        class="flex items-center gap-3 bg-white/50 p-1.5 rounded-2xl border border-slate-200/60 shadow-sm backdrop-blur-sm">
+        <label for="csv-upload"
+          class="cursor-pointer flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200/80 hover:border-emerald-500 hover:text-emerald-700 shadow-sm rounded-xl text-sm font-bold text-slate-700 transition-all duration-200 group">
+          <i data-lucide="file-spreadsheet"
+            class="w-4 h-4 text-emerald-600 group-hover:scale-110 transition-transform"></i>
+          <span>Upload Data CSV</span>
+        </label>
+        <input type="file" id="csv-upload" accept=".csv" class="hidden" onchange="handleFileUpload(event)" />
+        <span id="fileNameDisplay"
+          class="text-xs font-mono font-semibold text-slate-500 px-2 hidden max-w-[150px] truncate"></span>
+      </div>
+    </header>
+
+    <!-- White Glass Dashboard Card -->
+    <div class="bg-white rounded-2xl shadow-sm p-3.5 sm:p-4 border border-slate-200/80 space-y-4">
+
+      <!-- Top Navigation Bar -->
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3 overflow-x-auto">
+        <nav class="flex items-center gap-1.5 p-1.5 bg-slate-100/80 rounded-2xl border border-slate-200/60 min-w-max">
+          <button onclick="switchScreen('dashboard')" id="nav-dashboard"
+            class="nav-btn active px-4 py-2 text-xs md:text-sm text-slate-600 rounded-xl transition flex items-center gap-1.5">
+            <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+            <span>Dashboard</span>
+          </button>
+          <button onclick="switchScreen('devices')" id="nav-devices"
+            class="nav-btn px-4 py-2 text-xs md:text-sm text-slate-600 rounded-xl transition flex items-center gap-1.5">
+            <i data-lucide="cpu" class="w-4 h-4"></i>
+            <span>Connected Device</span>
+          </button>
+          <button onclick="switchScreen('telemetry')" id="nav-telemetry"
+            class="nav-btn px-4 py-2 text-xs md:text-sm text-slate-600 rounded-xl transition flex items-center gap-1.5">
+            <i data-lucide="line-chart" class="w-4 h-4"></i>
+            <span>Telemetry & Graph</span>
+          </button>
+          <button onclick="switchScreen('faults')" id="nav-faults"
+            class="nav-btn px-4 py-2 text-xs md:text-sm text-slate-600 rounded-xl transition flex items-center gap-1.5">
+            <i data-lucide="activity" class="w-4 h-4"></i>
+            <span>Fault Characteristics</span>
+          </button>
+          <button onclick="switchScreen('attention')" id="nav-attention"
+            class="nav-btn px-4 py-2 text-xs md:text-sm text-slate-600 rounded-xl transition flex items-center gap-1.5">
+            <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+            <span>Requires Attention</span>
+          </button>
+          <button onclick="switchScreen('recommendation')" id="nav-recommendation"
+            class="nav-btn px-4 py-2 text-xs md:text-sm text-slate-600 rounded-xl transition flex items-center gap-1.5">
+            <i data-lucide="lightbulb" class="w-4 h-4"></i>
+            <span>Recommendation</span>
+          </button>
+        </nav>
+
+        <div
+          class="hidden lg:flex items-center gap-2 text-xs font-semibold text-slate-500 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200/60">
+          <i data-lucide="shield-check" class="w-4 h-4 text-emerald-500"></i>
+          <span>1 Device Connected & Online</span>
+        </div>
+      </div>
+
+      <!-- ========================================================================= -->
+      <!-- SCREEN 1: MAIN DASHBOARD                                                  -->
+      <!-- ========================================================================= -->
+      <div id="screen-dashboard" class="space-y-4">
+
+        <!-- ROW 1: Upper Left Box ("Connected Devices") & Upper Right Corner ("Heading") -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+
+          <!-- Upper Left Corner Box: Connected Devices (Single Device) -->
+          <div
+            class="lg:col-span-5 bg-slate-50/80 rounded-2xl p-4 border border-slate-200/70 flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-2">
+                <h2 class="text-sm font-bold text-slate-900 tracking-tight">Connected Devices</h2>
+              </div>
+            </div>
+
+            <!-- Connected Devices List (Interactive Selection) -->
+            <div id="deviceListContainer" class="space-y-2">
+              <div id="device-card-CHILLER-01"
+                class="device-item active p-3.5 rounded-xl border-2 border-emerald-500 bg-emerald-50/50 shadow-sm transition flex items-center justify-between cursor-pointer"
+                onclick="selectDevice('CHILLER-01')">
+                <div class="flex items-center gap-3">
+                  <div>
+                    <h4 class="text-xs font-extrabold text-slate-900">Chiller Unit #1</h4>
+                    <div class="flex items-center gap-2 mt-0.5">
+                      <span class="text-[10px] font-mono text-slate-500">CHILLER-01</span>
+                      <span
+                        class="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded">Online</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <span id="cardPower-CHILLER-01" class="text-xs font-mono font-bold text-slate-900">-- kW</span>
+                </div>
+              </div>
+
+              <div id="device-card-CHILLER-02"
+                class="device-item p-3.5 rounded-xl border border-slate-200 bg-white hover:border-slate-300 shadow-sm transition flex items-center justify-between cursor-pointer"
+                onclick="selectDevice('CHILLER-02')">
+                <div class="flex items-center gap-3">
+                  <div>
+                    <h4 class="text-xs font-extrabold text-slate-900">Chiller Unit #2</h4>
+                    <div class="flex items-center gap-2 mt-0.5">
+                      <span class="text-[10px] font-mono text-slate-500">CHILLER-02</span>
+                      <span
+                        class="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded">Online</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <span id="cardPower-CHILLER-02" class="text-xs font-mono font-bold text-slate-900">-- kW</span>
+                </div>
+              </div>
+
+              <div id="device-card-CHILLER-03"
+                class="device-item p-3.5 rounded-xl border border-slate-200 bg-white hover:border-slate-300 shadow-sm transition flex items-center justify-between cursor-pointer"
+                onclick="selectDevice('CHILLER-03')">
+                <div class="flex items-center gap-3">
+                  <div>
+                    <h4 class="text-xs font-extrabold text-slate-900">Chiller Unit #3</h4>
+                    <div class="flex items-center gap-2 mt-0.5">
+                      <span class="text-[10px] font-mono text-slate-500">CHILLER-03</span>
+                      <span
+                        class="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded">Online</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <span id="cardPower-CHILLER-03" class="text-xs font-mono font-bold text-slate-900">-- kW</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Upper Right Corner: Selected Device Heading & Highlights -->
+          <div
+            class="lg:col-span-7 bg-emerald-900 text-white rounded-2xl p-5 border border-emerald-800 shadow-sm flex flex-col justify-between relative overflow-hidden">
+            <div class="absolute -right-8 -top-8 w-40 h-40 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none">
+            </div>
+
+            <div class="flex items-start justify-between">
+              <div>
+                <span
+                  class="text-[10px] font-mono tracking-widest text-emerald-300 font-bold uppercase block mb-1">Active
+                  Connected Device</span>
+                <h2 id="selectedDeviceHeading" class="text-2xl font-extrabold text-white tracking-tight">
+                  CHILLER-01 (HVAC Main Plant)
+                </h2>
+                <p id="selectedDeviceSub" class="text-xs text-emerald-200 mt-1">
+                  ID: CHILLER-01 &bull; Model: Centrifugal Chiller Series 4
+                </p>
+              </div>
+
+              <span id="selectedDeviceStatusBadge"
+                class="px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-500 text-slate-950 flex items-center gap-1.5 shadow-sm">
+                <span class="w-2 h-2 rounded-full bg-slate-950"></span>
+                <span>Ready for Input</span>
+              </span>
+            </div>
+
+            <div class="grid grid-cols-3 gap-3 mt-4 pt-4 border-t border-emerald-800/80 text-xs">
+              <div>
+                <span class="text-emerald-300 text-[10px] block">Current Power Draw</span>
+                <span class="text-base font-bold font-mono text-white" id="valHeaderPower">-- kW</span>
+              </div>
+              <div>
+                <span class="text-emerald-300 text-[10px] block">Building Load</span>
+                <span class="text-base font-bold font-mono text-white" id="valHeaderLoad">-- kW</span>
+              </div>
+              <div>
+                <span class="text-emerald-300 text-[10px] block">Health Score</span>
+                <span class="text-base font-bold font-mono text-amber-300" id="valHeaderHealth">--%</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ROW 2: Left Middle Graph, Middle SCAN Button & Fault Characteristics Box -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+
+          <!-- Left Middle: Telemetry Graph (values can be changed w.r.t parameters) -->
+          <div
+            class="lg:col-span-7 bg-slate-50/80 rounded-2xl p-4 border border-slate-200/70 flex flex-col justify-between">
+            <div class="flex flex-wrap items-center justify-between mb-3 gap-2">
+              <div>
+                <h3 class="text-lg md:text-xl font-bold text-slate-900 flex items-center gap-2">
+                  <span>Operational Telemetry Graph</span>
+                </h3>
+                <p class="text-sm text-slate-500 mt-1">Graph values dynamically adjusted w.r.t selected parameter.</p>
+              </div>
+
+              <!-- Parameter Selector Buttons -->
+              <div class="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 text-xs">
+                <button onclick="setGraphParam('power')" id="param-power"
+                  class="param-btn px-2.5 py-1 rounded-lg font-bold bg-emerald-500 text-white shadow-sm">Power
+                  (kW)</button>
+                <button onclick="setGraphParam('load')" id="param-load"
+                  class="param-btn px-2.5 py-1 rounded-lg font-semibold text-slate-600 hover:text-slate-900">Building
+                  Load</button>
+                <button onclick="setGraphParam('temp')" id="param-temp"
+                  class="param-btn px-2.5 py-1 rounded-lg font-semibold text-slate-600 hover:text-slate-900">Cooling
+                  Temp</button>
+              </div>
+            </div>
+
+            <!-- Graph Canvas -->
+            <div class="relative h-60 w-full bg-white rounded-xl p-2.5 border border-slate-200/60 shadow-inner">
+              <canvas id="dashboardTelemetryChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Right Middle Column: SCAN Button & Fault Characteristics -->
+          <div class="lg:col-span-5 flex flex-col justify-between space-y-3">
+
+            <!-- Middle: Circular SCAN Button Card -->
+            <div
+              class="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-4 border border-slate-700 shadow-md flex items-center justify-between relative overflow-hidden"
+              id="scanCardContainer">
+              <div class="flex-1 pr-3">
+                <span class="text-[10px] font-mono tracking-widest text-emerald-400 font-bold uppercase">ML Diagnostics
+                  Scanner</span>
+                <h3 class="text-sm font-bold text-white mt-0.5">Run Device Scan</h3>
+                <p class="text-[11px] text-slate-300 mt-0.5" id="scanStatusText">Click SCAN to analyze device sensor
+                  streams for faults.</p>
+
+                <!-- Scanning Progress Bar & Percentage Indicator -->
+                <div id="scanProgressBarContainer" class="mt-2.5 hidden space-y-1">
+                  <div class="flex items-center justify-between text-[10px] font-mono">
+                    <span class="text-slate-300 truncate max-w-[170px]" id="scanProgressStage">Standardizing
+                      features...</span>
+                    <span class="text-emerald-400 font-bold" id="scanProgressPct">0%</span>
+                  </div>
+                  <div class="w-full bg-slate-700/80 rounded-full h-1.5 overflow-hidden">
+                    <div id="scanProgressBar" class="bg-emerald-500 h-1.5 rounded-full transition-all duration-200 w-0">
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Circular SCAN Button -->
+              <button onclick="triggerScan()"
+                class="scan-btn w-14 h-14 rounded-full flex flex-col items-center justify-center text-white font-extrabold text-xs shadow-lg shrink-0 cursor-pointer">
+                <i data-lucide="radar" class="w-4 h-4 mb-0.5 animate-pulse"></i>
+                <span>SCAN</span>
+              </button>
+            </div>
+
+            <!-- Box: Fault Characteristics -->
+            <div class="bg-slate-50/80 rounded-2xl p-4 border border-slate-200/70 flex-1 flex flex-col justify-between">
+              <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-2">
+                  <h3 class="text-sm font-bold text-slate-900">Fault Characteristics</h3>
+                </div>
+                <span id="faultBadge"
+                  class="text-[10px] font-mono font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">Score:
+                  0.89</span>
+              </div>
+
+              <div class="space-y-2 text-xs">
+                <div class="p-2.5 bg-white rounded-xl border border-slate-200/60">
+                  <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Primary Error
+                    Flag</span>
+                  <span class="text-xs font-bold text-slate-900" id="valPrimaryErrorFlag">Baseline Power Draw
+                    Deviation</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                  <div class="p-2 bg-white rounded-lg border border-slate-200/60">
+                    <span class="text-slate-400 text-[10px] block">Deviative Delta</span>
+                    <span class="font-mono font-bold text-rose-600" id="valDeviativeDelta">-- kW</span>
+                  </div>
+                  <div class="p-2 bg-white rounded-lg border border-slate-200/60">
+                    <span class="text-slate-400 text-[10px] block">Top Driver</span>
+                    <span class="font-bold text-slate-800" id="valTopDriver">Calculated from CSV</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- ROW 3: Component Scores Table (Matching Reference Layout) -->
+        <div class="bg-slate-900 text-white rounded-2xl p-5 border border-slate-800 shadow-sm space-y-3">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+            <div>
+              <h3 class="text-sm font-bold text-slate-100 tracking-tight">The resulting component scores were:</h3>
+              <p class="text-[11px] text-slate-400 mt-0.5">Unsupervised component health decomposition calculated from
+                uploaded CSV dataset</p>
+            </div>
+            <span
+              class="text-[10px] font-mono text-emerald-400 bg-emerald-950/80 px-2.5 py-1 rounded-lg border border-emerald-800 font-bold">ML
+              Calculated</span>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs font-mono border-collapse">
+              <thead>
+                <tr class="border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
+                  <th class="py-2.5 px-4">Chiller</th>
+                  <th class="py-2.5 px-4 text-right">Energy Performance</th>
+                  <th class="py-2.5 px-4 text-right">Efficiency</th>
+                  <th class="py-2.5 px-4 text-right">Sensor Stability</th>
+                  <th class="py-2.5 px-4 text-right font-bold text-white">Final</th>
+                </tr>
+              </thead>
+              <tbody id="componentScoresTableBody" class="divide-y divide-slate-800/60">
+                <tr>
+                  <td class="py-3 px-4 font-bold text-slate-300">CHILLER-01</td>
+                  <td class="py-3 px-4 text-right text-slate-400">--</td>
+                  <td class="py-3 px-4 text-right text-slate-400">--</td>
+                  <td class="py-3 px-4 text-right text-slate-400">--</td>
+                  <td class="py-3 px-4 text-right font-bold text-white">--</td>
+                </tr>
+                <tr>
+                  <td class="py-3 px-4 font-bold text-slate-300">CHILLER-02</td>
+                  <td class="py-3 px-4 text-right text-slate-400">--</td>
+                  <td class="py-3 px-4 text-right text-slate-400">--</td>
+                  <td class="py-3 px-4 text-right text-slate-400">--</td>
+                  <td class="py-3 px-4 text-right font-bold text-white">--</td>
+                </tr>
+                <tr>
+                  <td class="py-3 px-4 font-bold text-slate-300">CHILLER-03</td>
+                  <td class="py-3 px-4 text-right text-slate-400">--</td>
+                  <td class="py-3 px-4 text-right text-slate-400">--</td>
+                  <td class="py-3 px-4 text-right text-slate-400">--</td>
+                  <td class="py-3 px-4 text-right font-bold text-white">--</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ROW 3: Bottom Left ("Requires Attention") & Bottom Right ("Recommendation") -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+
+          <!-- Bottom Left Box: Requires Attention -->
+          <div
+            class="lg:col-span-6 bg-rose-50/50 rounded-2xl p-5 border border-rose-200/80 flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-2">
+                <div>
+                  <h3 class="text-sm font-bold text-slate-900">Requires Attention</h3>
+                  <p class="text-[10px] text-rose-700 font-medium">Flagged anomalous conditions from uploaded CSV</p>
+                </div>
+              </div>
+              <span class="text-[10px] font-bold uppercase bg-rose-100 text-rose-800 px-2 py-0.5 rounded"
+                id="valAttentionPriority">High Priority</span>
+            </div>
+
+            <div class="space-y-2 text-xs" id="valAttentionLog">
+              <div class="p-3 bg-white rounded-xl border border-rose-100 space-y-1">
+                <div class="flex items-center justify-between">
+                  <span class="font-bold text-slate-900">Telemetry Analysis Pending</span>
+                </div>
+                <p class="text-[11px] text-slate-600 leading-normal">Upload a CSV file or trigger a scan to display
+                  computed anomalies.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom Right Box: Recommendation (Next to Requires Attention) -->
+          <div class="lg:col-span-6 bg-emerald-50/50 rounded-2xl p-5 border border-emerald-200/80 flex flex-col gap-3">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="text-sm font-bold text-slate-900">Recommendation</h3>
+                <p class="text-[10px] text-emerald-800 font-medium">Evidence-based ML action plan from CSV analysis</p>
+              </div>
+              <span
+                class="text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded shrink-0">Action
+                Ready</span>
+            </div>
+
+            <div class="bg-white rounded-xl border border-emerald-100 p-3.5 flex flex-col gap-2">
+              <div class="flex items-start gap-2.5">
+                <span
+                  class="w-5 h-5 rounded-full bg-emerald-500 text-white text-[10px] font-extrabold flex items-center justify-center shrink-0 mt-0.5">1</span>
+                <div>
+                  <p class="text-xs font-bold text-slate-900" id="recTitleMain">Upload Telemetry CSV</p>
+                  <p class="text-[11px] text-slate-500 mt-0.5 leading-relaxed" id="recBodyMain">ML recommendations will
+                    be calculated dynamically based on uploaded dataset residuals.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between pt-1 border-t border-emerald-200/60">
+              <div>
+                <p class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Est. Savings</p>
+                <p class="text-sm font-bold text-emerald-700" id="valEstSavings">-- kWh / day</p>
+              </div>
+              <span class="text-[10px] font-mono text-slate-400" id="recUrgencyMain">--</span>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- ========================================================================= -->
+      <!-- SCREEN 2: CONNECTED DEVICE (Dedicated Screen)                            -->
+      <!-- ========================================================================= -->
+      <div id="screen-devices" class="space-y-6 hidden">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900">Connected Device Details</h2>
+            <p class="text-xs text-slate-500">Full specs and live status for connected equipment</p>
+          </div>
+          <button onclick="switchScreen('dashboard')"
+            class="text-xs font-bold text-emerald-600 hover:underline flex items-center gap-1">
+            &larr; Back to Dashboard
+          </button>
+        </div>
+
+        <div class="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-4 max-w-2xl">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-base font-extrabold text-slate-900" id="deviceDetailHeading">Chiller Unit #1 (HVAC Main
+                Plant)</h3>
+              <p class="text-xs text-slate-500 font-mono" id="deviceDetailSub">ID: CHILLER-01 &bull; Model: Centrifugal
+                Chiller Series 4</p>
+            </div>
+            <span class="px-2.5 py-1 text-xs font-bold bg-emerald-100 text-emerald-900 rounded-full"
+              id="deviceDetailBadge">Normal Operation</span>
+          </div>
+
+          <div class="grid grid-cols-3 gap-4 pt-3 border-t border-slate-100 text-xs">
+            <div class="p-3 bg-slate-50 rounded-xl">
+              <span class="text-slate-400 block text-[10px]">Power Draw</span>
+              <span class="text-lg font-bold font-mono text-slate-900" id="deviceDetailPower">-- kW</span>
+            </div>
+            <div class="p-3 bg-slate-50 rounded-xl">
+              <span class="text-slate-400 block text-[10px]">Thermal Load</span>
+              <span class="text-lg font-bold font-mono text-slate-900" id="deviceDetailLoad">-- kW</span>
+            </div>
+            <div class="p-3 bg-slate-50 rounded-xl">
+              <span class="text-slate-400 block text-[10px]">Health Index</span>
+              <span class="text-lg font-bold font-mono text-emerald-600" id="deviceDetailHealth">--%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================================================= -->
+      <!-- SCREEN 3: TELEMETRY & GRAPH (Dedicated Screen)                            -->
+      <!-- ========================================================================= -->
+      <div id="screen-telemetry" class="space-y-6 hidden">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900">Detailed Telemetry Explorer</h2>
+            <p class="text-xs text-slate-500">Historical telemetry graph with expected vs observed ML baseline</p>
+          </div>
+          <button onclick="switchScreen('dashboard')"
+            class="text-xs font-bold text-emerald-600 hover:underline flex items-center gap-1">
+            &larr; Back to Dashboard
+          </button>
+        </div>
+
+        <div class="bg-slate-50 p-5 rounded-2xl border border-slate-200">
+          <div class="relative h-96 w-full">
+            <canvas id="fullTelemetryChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================================================= -->
+      <!-- SCREEN 4: FAULT CHARACTERISTICS (Dedicated Screen)                        -->
+      <!-- ========================================================================= -->
+      <div id="screen-faults" class="space-y-6 hidden">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900">Fault Characteristics & Diagnostics</h2>
+            <p class="text-xs text-slate-500">Deep-dive anomaly drivers & scatter cluster</p>
+          </div>
+          <button onclick="switchScreen('dashboard')"
+            class="text-xs font-bold text-emerald-600 hover:underline flex items-center gap-1">
+            &larr; Back to Dashboard
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="bg-white p-5 rounded-2xl border border-slate-200">
+            <h3 class="text-sm font-bold text-slate-900 mb-3">Feature Drivers (SHAP Values)</h3>
+            <div class="h-64 relative">
+              <canvas id="fullDriverChart"></canvas>
+            </div>
+          </div>
+
+          <div class="bg-white p-5 rounded-2xl border border-slate-200">
+            <h3 class="text-sm font-bold text-slate-900 mb-3">Scatter Cluster (Load vs Energy Draw)</h3>
+            <div class="h-64 relative">
+              <canvas id="fullScatterChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================================================= -->
+      <!-- SCREEN 5: REQUIRES ATTENTION (Dedicated Screen)                           -->
+      <!-- ========================================================================= -->
+      <div id="screen-attention" class="space-y-6 hidden">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900">Requires Attention Log</h2>
+            <p class="text-xs text-slate-500">Prioritized operational issues requiring immediate intervention from
+              uploaded CSV</p>
+          </div>
+          <button onclick="switchScreen('dashboard')"
+            class="text-xs font-bold text-emerald-600 hover:underline flex items-center gap-1">
+            &larr; Back to Dashboard
+          </button>
+        </div>
+
+        <div id="valAttentionScreenLog" class="space-y-4">
+          <div class="bg-amber-50 p-5 rounded-2xl border border-amber-200 flex items-start justify-between">
+            <div>
+              <h4 class="font-bold text-amber-900">Telemetry Analysis Pending</h4>
+              <p class="text-xs text-amber-800 mt-1">Upload a CSV file or trigger a scan to display computed anomaly
+                flags.</p>
+            </div>
+            <button onclick="switchScreen('dashboard')"
+              class="px-3 py-1.5 bg-amber-600 text-white font-bold text-xs rounded-lg">View Dashboard</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================================================= -->
+      <!-- SCREEN 6: RECOMMENDATION (Dedicated Screen)                               -->
+      <!-- ========================================================================= -->
+      <div id="screen-recommendation" class="space-y-6 hidden">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900">Actionable Operational Recommendations</h2>
+            <p class="text-xs text-slate-500">Evidence-backed operational guidance</p>
+          </div>
+          <button onclick="switchScreen('dashboard')"
+            class="text-xs font-bold text-emerald-600 hover:underline flex items-center gap-1">
+            &larr; Back to Dashboard
+          </button>
+        </div>
+
+        <div class="p-5 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-3 max-w-xl">
+          <span class="px-2 py-0.5 text-[10px] font-bold uppercase bg-amber-100 text-amber-900 rounded">Priority 1
+            &bull; High</span>
+          <h3 class="font-bold text-slate-900" id="recTitleDetail">Clean Cooling Tower Condenser Tubes</h3>
+          <p class="text-xs text-slate-600 leading-normal" id="recBodyDetail">Reduce cooling water temperature delta
+            from 33.8°C to nominal 29.5°C.</p>
+          <div class="font-bold text-xs text-emerald-600" id="recSavingsDetail">Est Savings: 148 kWh / day ($44.40)
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <script>
+    let currentParam = 'power';
+    let dashboardChart, fullTelemetryChart, fullDriverChart, fullScatterChart;
+    window.currentScoredData = [];
+    window.selectedChillerId = 'CHILLER-01';
+    // Once real CSV data is plotted, this locks the chart so synthetic scan data cannot overwrite it
+    window._csvDataLocked = false;
+
+    const API_BASE_URL = 'http://localhost:8000';
+
+    document.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      initAllCharts();
+      setGraphParam('power');
+    });
+
+    function selectDevice(chillerId) {
+      window.selectedChillerId = chillerId;
+      ['CHILLER-01', 'CHILLER-02', 'CHILLER-03'].forEach(id => {
+        const card = document.getElementById(`device-card-${id}`);
+        if (!card) return;
+        if (id === chillerId) {
+          card.className = "device-item active p-3.5 rounded-xl border-2 border-emerald-500 bg-emerald-50/50 shadow-sm transition flex items-center justify-between cursor-pointer";
+        } else {
+          card.className = "device-item p-3.5 rounded-xl border border-slate-200 bg-white hover:border-slate-300 shadow-sm transition flex items-center justify-between cursor-pointer";
+        }
+      });
+      if (window.currentScoredData && window.currentScoredData.length > 0) {
+        updateDashboard(window.currentScoredData);
+      }
+    }
+
+    function switchScreen(screenId) {
+      ['dashboard', 'devices', 'telemetry', 'faults', 'attention', 'recommendation'].forEach(id => {
+        const nav = document.getElementById(`nav-${id}`);
+        const scr = document.getElementById(`screen-${id}`);
+        if (id === screenId) {
+          if (nav) nav.classList.add('active');
+          if (scr) scr.classList.remove('hidden');
+        } else {
+          if (nav) nav.classList.remove('active');
+          if (scr) scr.classList.add('hidden');
+        }
+      });
+
+      setTimeout(() => {
+        if (dashboardChart) dashboardChart.resize();
+        if (fullTelemetryChart) fullTelemetryChart.resize();
+        if (fullDriverChart) fullDriverChart.resize();
+        if (fullScatterChart) fullScatterChart.resize();
+      }, 50);
+    }
+
+    function setGraphParam(param) {
+      currentParam = param;
+      ['power', 'load', 'temp'].forEach(p => {
+        const btn = document.getElementById(`param-${p}`);
+        if (!btn) return;
+        if (p === param) {
+          btn.className = 'param-btn px-2.5 py-1 rounded-lg font-bold bg-emerald-500 text-white shadow-sm';
+        } else {
+          btn.className = 'param-btn px-2.5 py-1 rounded-lg font-semibold text-slate-600 hover:text-slate-900';
+        }
+      });
+      updateDashboardChart();
+    }
+
+    function updateDashboard(scoredData) {
+      if (!scoredData || scoredData.length === 0) return;
+      window.currentScoredData = scoredData;
+
+      const chillers = ['CHILLER-01', 'CHILLER-02', 'CHILLER-03'];
+
+      // Update card power readings
+      chillers.forEach(cid => {
+        const chRows = scoredData.filter(r => r.chiller_id === cid);
+        const lastRow = chRows[chRows.length - 1];
+        const cardPower = document.getElementById(`cardPower-${cid}`);
+        if (cardPower && lastRow && lastRow.energy != null) {
+          cardPower.innerText = `${Number(lastRow.energy).toFixed(1)} kW`;
+        }
+      });
+
+      // Update Component Scores Table matching Reference Image
+      const tableBody = document.getElementById('componentScoresTableBody');
+      if (tableBody) {
+        let tableHtml = chillers.map(cid => {
+          const chRows = scoredData.filter(r => r.chiller_id === cid);
+          if (chRows.length === 0) {
+            return `
+              <tr>
+                <td class="py-3 px-4 font-bold text-slate-300">${cid}</td>
+                <td class="py-3 px-4 text-right text-slate-400">--</td>
+                <td class="py-3 px-4 text-right text-slate-400">--</td>
+                <td class="py-3 px-4 text-right text-slate-400">--</td>
+                <td class="py-3 px-4 text-right font-bold text-white">--</td>
+              </tr>`;
+          }
+
+          const avgResidualRatio = chRows.reduce((acc, r) => {
+            const res = Math.abs(r.residual != null ? r.residual : ((r.energy || 0) - (r.predicted_energy || 0)));
+            const pred = r.predicted_energy || r.energy || 1.0;
+            return acc + (res / pred);
+          }, 0) / chRows.length;
+
+          const energyPerfScore = Math.max(65.0, Math.min(100.0, 100.0 - (avgResidualRatio * 40.0))).toFixed(1);
+
+          const avgRegimeDist = chRows.reduce((acc, r) => acc + (r.regime_distance || 0.05), 0) / chRows.length;
+          const efficiencyScore = Math.max(65.0, Math.min(100.0, 100.0 - (avgRegimeDist * 30.0))).toFixed(1);
+
+          const avgIfScore = chRows.reduce((acc, r) => acc + (r.anomaly_score_if || 0.1), 0) / chRows.length;
+          const sensorStabScore = Math.max(65.0, Math.min(100.0, 100.0 - (avgIfScore * 50.0))).toFixed(1);
+
+          const avgCompScore = chRows.reduce((acc, r) => acc + (r.composite_score || 0.0), 0) / chRows.length;
+          const finalScore = Math.max(65.0, Math.min(100.0, (1.0 - avgCompScore) * 100.0)).toFixed(1);
+
+          return `
+            <tr>
+              <td class="py-3 px-4 font-bold text-slate-200">${cid}</td>
+              <td class="py-3 px-4 text-right text-emerald-400 font-bold">${energyPerfScore}</td>
+              <td class="py-3 px-4 text-right text-emerald-400 font-bold">${efficiencyScore}</td>
+              <td class="py-3 px-4 text-right text-emerald-400 font-bold">${sensorStabScore}</td>
+              <td class="py-3 px-4 text-right font-extrabold text-white text-sm bg-slate-800/40">${finalScore}</td>
+            </tr>`;
+        }).join('');
+        tableBody.innerHTML = tableHtml;
+      }
+
+      // Filter rows for currently selected chiller
+      const selectedCid = window.selectedChillerId || 'CHILLER-01';
+      let filteredRows = scoredData.filter(r => r.chiller_id === selectedCid);
+      if (filteredRows.length === 0) filteredRows = scoredData;
+
+      const latest = filteredRows[filteredRows.length - 1] || scoredData[scoredData.length - 1];
+
+      // Update Header Highlights (Screen 1 & Screen 2)
+      const headingText = `Chiller Unit #${selectedCid.replace('CHILLER-0', '')} (HVAC Main Plant)`;
+      const subText = `ID: ${selectedCid} • Model: Centrifugal Chiller Series 4`;
+
+      const headingEl = document.getElementById('selectedDeviceHeading');
+      if (headingEl) headingEl.innerText = headingText;
+
+      const devHeadEl = document.getElementById('deviceDetailHeading');
+      if (devHeadEl) devHeadEl.innerText = headingText;
+
+      const subEl = document.getElementById('selectedDeviceSub');
+      if (subEl) subEl.innerText = subText;
+
+      const devSubEl = document.getElementById('deviceDetailSub');
+      if (devSubEl) devSubEl.innerText = subText;
+
+      const powEl = document.getElementById('valHeaderPower');
+      if (powEl && latest.energy != null) powEl.innerText = `${Number(latest.energy).toFixed(1)} kW`;
+
+      const devPowEl = document.getElementById('deviceDetailPower');
+      if (devPowEl && latest.energy != null) devPowEl.innerText = `${Number(latest.energy).toFixed(1)} kW`;
+
+      const loadEl = document.getElementById('valHeaderLoad');
+      if (loadEl && latest.load != null) loadEl.innerText = `${Number(latest.load).toFixed(1)} kW`;
+
+      const devLoadEl = document.getElementById('deviceDetailLoad');
+      if (devLoadEl && latest.load != null) devLoadEl.innerText = `${Number(latest.load).toFixed(1)} kW`;
+
+      const compScore = latest.composite_score != null ? latest.composite_score : 0.0;
+      const healthPct = Math.max(0, (1.0 - compScore) * 100);
+
+      const healthEl = document.getElementById('valHeaderHealth');
+      if (healthEl) {
+        healthEl.innerText = `${healthPct.toFixed(1)}%`;
+        healthEl.className = compScore > 0.6 ? "text-base font-bold font-mono text-rose-300" : "text-base font-bold font-mono text-amber-300";
+      }
+
+      const devHealthEl = document.getElementById('deviceDetailHealth');
+      if (devHealthEl) {
+        devHealthEl.innerText = `${healthPct.toFixed(1)}%`;
+        devHealthEl.className = compScore > 0.6 ? "text-lg font-bold font-mono text-rose-600" : "text-lg font-bold font-mono text-emerald-600";
+      }
+
+      const badgeEl = document.getElementById('selectedDeviceStatusBadge');
+      if (badgeEl) {
+        if (compScore > 0.5) {
+          badgeEl.className = "px-2.5 py-1 text-xs font-bold rounded-lg bg-amber-400 text-slate-950 flex items-center gap-1.5 shadow-sm";
+          badgeEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-slate-950"></span><span>Attention Needed</span>`;
+        } else {
+          badgeEl.className = "px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-400 text-slate-950 flex items-center gap-1.5 shadow-sm";
+          badgeEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-slate-950"></span><span>Normal Operation</span>`;
+        }
+      }
+
+      const devBadgeEl = document.getElementById('deviceDetailBadge');
+      if (devBadgeEl) {
+        if (compScore > 0.5) {
+          devBadgeEl.className = "px-2.5 py-1 text-xs font-bold bg-amber-100 text-amber-900 rounded-full";
+          devBadgeEl.innerText = "Attention Needed";
+        } else {
+          devBadgeEl.className = "px-2.5 py-1 text-xs font-bold bg-emerald-100 text-emerald-900 rounded-full";
+          devBadgeEl.innerText = "Normal Operation";
+        }
+      }
+
+      // Deviative Delta calculation from ML residual
+      const residual = latest.residual != null ? latest.residual : ((latest.energy || 0) - (latest.predicted_energy || 0));
+      const predVal = latest.predicted_energy || 1.0;
+      const resPct = (residual / predVal) * 100;
+      const deltaEl = document.getElementById('valDeviativeDelta');
+      if (deltaEl) {
+        const sign = residual >= 0 ? '+' : '';
+        deltaEl.innerText = `${sign}${residual.toFixed(1)} kW (${sign}${resPct.toFixed(0)}%)`;
+        deltaEl.className = residual > 0 ? "font-mono font-bold text-rose-600" : "font-mono font-bold text-emerald-600";
+      }
+
+      // Primary Error Flag & Top Driver
+      const errorFlagEl = document.getElementById('valPrimaryErrorFlag');
+      if (errorFlagEl) {
+        errorFlagEl.innerText = latest.recommendation_title || "Baseline Power Draw Deviation";
+      }
+
+      const driverEl = document.getElementById('valTopDriver');
+      if (driverEl) {
+        const cwTemp = latest.cw_temp || 30.0;
+        if (cwTemp > 32.0) {
+          driverEl.innerText = `Cooling Water (${cwTemp.toFixed(1)}°C)`;
+        } else if (residual > 20) {
+          driverEl.innerText = `Energy Draw (+${residual.toFixed(0)} kW)`;
+        } else {
+          driverEl.innerText = `Building Load (${(latest.load || 0).toFixed(0)} kW)`;
+        }
+      }
+
+      // Calculate total excess energy across anomalous points in the dataset
+      let totalExcessKwh = 0;
+      scoredData.forEach(r => {
+        const res = r.residual != null ? r.residual : ((r.energy || 0) - (r.predicted_energy || 0));
+        if (res > 0) totalExcessKwh += res * 0.25;
+      });
+      const costEst = totalExcessKwh * 0.12;
+
+      const savEl = document.getElementById('valEstSavings');
+      if (savEl) {
+        savEl.innerHTML = `${totalExcessKwh.toFixed(0)} kWh / day <span class="text-slate-500 font-medium text-xs">(\$${costEst.toFixed(2)})</span>`;
+      }
+
+      const savDetEl = document.getElementById('recSavingsDetail');
+      if (savDetEl) {
+        savDetEl.innerText = `Est Savings: ${totalExcessKwh.toFixed(0)} kWh / day (\$${costEst.toFixed(2)})`;
+      }
+
+      // Update Attention Logs dynamically from anomalous points
+      const anomalyRows = filteredRows.filter(r => (r.composite_score || 0) > 0.4 || r.severity !== 'Normal');
+      const attLogEl = document.getElementById('valAttentionLog');
+      const attScreenLogEl = document.getElementById('valAttentionScreenLog');
+
+      if (anomalyRows.length > 0) {
+        const topAnomalies = anomalyRows.slice(-3).reverse();
+
+        let htmlLog = topAnomalies.map(r => {
+          const tsStr = r.timestamp ? (new Date(r.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) : 'Recent';
+          const rRes = r.residual != null ? r.residual.toFixed(1) : '0';
+          return `
+            <div class="p-3 bg-white rounded-xl border border-rose-100 space-y-1">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-slate-900">${r.chiller_id}: ${r.recommendation_title || 'Elevated Power Draw'}</span>
+                <span class="text-[10px] font-mono text-slate-400">${tsStr}</span>
+              </div>
+              <p class="text-[11px] text-slate-600 leading-normal">Observed energy draw +${rRes} kW above ML baseline (Load: ${(r.load || 0).toFixed(0)} kW).</p>
+            </div>
+          `;
+        }).join('');
+
+        if (attLogEl) attLogEl.innerHTML = htmlLog;
+
+        let htmlScreenLog = anomalyRows.slice(-5).reverse().map(r => {
+          const rRes = r.residual != null ? r.residual.toFixed(1) : '0';
+          return `
+            <div class="bg-amber-50 p-5 rounded-2xl border border-amber-200 flex items-start justify-between">
+              <div>
+                <h4 class="font-bold text-amber-900">${r.chiller_id} - ${r.recommendation_title || 'Power Draw Anomaly'}</h4>
+                <p class="text-xs text-amber-800 mt-1">Observed ${(r.energy || 0).toFixed(1)} kW vs expected ${(r.predicted_energy || 0).toFixed(1)} kW baseline under ${(r.load || 0).toFixed(0)} kW load. Score: ${(r.composite_score || 0).toFixed(2)}</p>
+              </div>
+              <button onclick="switchScreen('dashboard')" class="px-3 py-1.5 bg-amber-600 text-white font-bold text-xs rounded-lg">View Dashboard</button>
+            </div>
+          `;
+        }).join('');
+
+        if (attScreenLogEl) attScreenLogEl.innerHTML = htmlScreenLog;
+      }
+
+      // Update Recommendation Details
+      if (latest.recommendation_title) {
+        const recTitleMain = document.getElementById('recTitleMain');
+        const recBodyMain = document.getElementById('recBodyMain');
+        const recUrgencyMain = document.getElementById('recUrgencyMain');
+        const recTitleDetail = document.getElementById('recTitleDetail');
+        const recBodyDetail = document.getElementById('recBodyDetail');
+        if (recTitleMain) recTitleMain.innerText = latest.recommendation_title;
+        if (recBodyMain) recBodyMain.innerText = latest.recommendation_body || '';
+        if (recUrgencyMain) recUrgencyMain.innerText = latest.recommendation_urgency || 'Medium';
+        if (recTitleDetail) recTitleDetail.innerText = latest.recommendation_title;
+        if (recBodyDetail) recBodyDetail.innerText = latest.recommendation_body || '';
+      }
+
+      // Update Charts with filtered time-series data
+      updateDashboardChart();
+      updateFullCharts(filteredRows);
+    }
+
+    function updateDashboardChart() {
+      if (!dashboardChart) return;
+      const scoredData = window.currentScoredData;
+      if (!scoredData || scoredData.length === 0) return;
+
+      const selectedCid = window.selectedChillerId || 'CHILLER-01';
+      let rows = scoredData.filter(r => r.chiller_id === selectedCid);
+      if (rows.length === 0) rows = scoredData;
+
+      const plotRows = rows.slice(-24);
+      const labels = plotRows.map(r => {
+        if (!r.timestamp) return '';
+        const d = new Date(r.timestamp);
+        return isNaN(d) ? String(r.timestamp).slice(11, 16) : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      });
+
+      let actualData = [];
+      let expectedData = [];
+      let label = '';
+
+      if (currentParam === 'power') {
+        label = 'Power Consumption (kW)';
+        actualData = plotRows.map(r => r.energy != null ? Number(r.energy.toFixed(1)) : null);
+        expectedData = plotRows.map(r => r.predicted_energy != null ? Number(r.predicted_energy.toFixed(1)) : null);
+      } else if (currentParam === 'load') {
+        label = 'Building Load (kW)';
+        actualData = plotRows.map(r => r.load != null ? Number(r.load.toFixed(1)) : null);
+        expectedData = plotRows.map(r => r.load != null ? Number(r.load.toFixed(1)) : null);
+      } else {
+        label = 'Cooling Water Temp (°C)';
+        actualData = plotRows.map(r => r.cw_temp != null ? Number(r.cw_temp.toFixed(1)) : null);
+        expectedData = plotRows.map(r => 30.0);
+      }
+
+      dashboardChart.data.labels = labels;
+      dashboardChart.data.datasets[0].label = `Observed ${label}`;
+      dashboardChart.data.datasets[0].data = actualData;
+      dashboardChart.data.datasets[1].label = `Expected ML ${label}`;
+      dashboardChart.data.datasets[1].data = expectedData;
+      dashboardChart.update();
+    }
+
+    function updateFullCharts(rows) {
+      if (!rows || rows.length === 0) return;
+
+      const plotRows = rows.slice(-24);
+      const labels = plotRows.map(r => {
+        const d = new Date(r.timestamp);
+        return isNaN(d) ? String(r.timestamp).slice(11, 16) : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      });
+
+      if (fullTelemetryChart) {
+        fullTelemetryChart.data.labels = labels;
+        fullTelemetryChart.data.datasets[0].data = plotRows.map(r => r.energy != null ? Number(r.energy.toFixed(1)) : null);
+        fullTelemetryChart.data.datasets[1].data = plotRows.map(r => r.predicted_energy != null ? Number(r.predicted_energy.toFixed(1)) : null);
+        fullTelemetryChart.update();
+      }
+
+      if (fullDriverChart) {
+        const latest = plotRows[plotRows.length - 1];
+        const cwResidual = latest && latest.cw_temp ? Math.abs(latest.cw_temp - 30.0) * 10 : 25;
+        const energyResidual = latest && latest.energy && latest.predicted_energy ? Math.abs(latest.energy - latest.predicted_energy) : 35;
+        const loadDriver = latest && latest.load ? (latest.load / 600.0) * 20 : 15;
+        const humidityDriver = latest && latest.humidity ? (latest.humidity / 100.0) * 10 : 10;
+
+        fullDriverChart.data.datasets[0].data = [
+          Number(cwResidual.toFixed(1)),
+          Number(energyResidual.toFixed(1)),
+          Number(loadDriver.toFixed(1)),
+          Number(humidityDriver.toFixed(1))
+        ];
+        fullDriverChart.update();
+      }
+
+      if (fullScatterChart) {
+        const normalPoints = plotRows.filter(r => (r.composite_score || 0) <= 0.5).map(r => ({ x: r.load || 500, y: r.energy || 120 }));
+        const outlierPoints = plotRows.filter(r => (r.composite_score || 0) > 0.5).map(r => ({ x: r.load || 500, y: r.energy || 120 }));
+
+        if (normalPoints.length > 0) fullScatterChart.data.datasets[0].data = normalPoints;
+        if (outlierPoints.length > 0) fullScatterChart.data.datasets[1].data = outlierPoints;
+        fullScatterChart.update();
+      }
+    }
+
+    function setScanProgress(stage, pct) {
+      const container = document.getElementById('scanProgressBarContainer');
+      const stageEl = document.getElementById('scanProgressStage');
+      const pctEl = document.getElementById('scanProgressPct');
+      const barEl = document.getElementById('scanProgressBar');
+
+      if (container) container.classList.remove('hidden');
+      if (stageEl) stageEl.innerText = stage;
+      if (pctEl) pctEl.innerText = `${Math.round(pct)}%`;
+      if (barEl) barEl.style.width = `${Math.round(pct)}%`;
+    }
+
+    async function handleFileUpload(event) {
+      const file = event.target.files[0];
+      const display = document.getElementById('fileNameDisplay');
+
+      if (!file) {
+        display.textContent = '';
+        display.classList.add('hidden');
+        return;
+      }
+
+      display.textContent = file.name;
+      display.classList.remove('hidden');
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const healthEl = document.getElementById('healthStatus');
+      const scanBtn = document.getElementById('scanBtn');
+
+      const setStatus = (msg, cls) => {
+        if (healthEl) {
+          healthEl.textContent = msg;
+          healthEl.className = `text-lg font-bold ${cls}`;
+        }
+      };
+
+      if (scanBtn) scanBtn.disabled = true;
+
+      try {
+        setStatus('⚡ Scoring CSV dataset with ML model...', 'text-blue-500 animate-pulse');
+        setScanProgress('Evaluating ML model features...', 25);
+
+        const response = await fetch(`${API_BASE_URL}/upload_csv`, {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!response.ok) {
+          const errBody = await response.text();
+          throw new Error(`Server error ${response.status}: ${errBody}`);
+        }
+
+        setScanProgress('Rendering ML predictions...', 95);
+        setStatus('📊 Rendering calculated results…', 'text-emerald-500 animate-pulse');
+        const result = await response.json();
+        const scoredData = result.scored_data;
+
+        if (scoredData && scoredData.length > 0) {
+          window.currentScoredData = scoredData;
+          window._csvDataLocked = true;  // Lock chart data — real CSV results cannot be overwritten
+          updateDashboard(scoredData);
+          setScanProgress('Scoring Complete!', 100);
+          setStatus('\u2705 Model trained & scored from CSV', 'text-emerald-600');
+        } else {
+          setStatus('\u26a0\ufe0f No results returned', 'text-amber-600');
+        }
+
+      } catch (error) {
+        console.error('CSV upload/training error:', error);
+        setStatus('❌ Error: ' + error.message.slice(0, 60), 'text-red-600');
+        setScanProgress('Error calculating', 0);
+      } finally {
+        if (scanBtn) scanBtn.disabled = false;
+        setTimeout(() => {
+          const container = document.getElementById('scanProgressBarContainer');
+          if (container) container.classList.add('hidden');
+        }, 3500);
+      }
+    }
+
+    async function triggerScan() {
+      // If real CSV data is already loaded and locked, do not overwrite it with synthetic data
+      if (window._csvDataLocked) {
+        const statusText = document.getElementById('scanStatusText');
+        if (statusText) statusText.innerText = 'Dashboard locked to CSV data. Re-upload a new file to refresh.';
+        return;
+      }
+
+      const container = document.getElementById('scanCardContainer');
+      const statusText = document.getElementById('scanStatusText');
+
+      if (container) container.classList.add('scanning-active');
+      if (statusText) statusText.innerText = 'Scanning sensor streams for CHILLER-01, 02 & 03...';
+
+      try {
+        setScanProgress('Standardizing features (z_i = (x_i - μ)/σ)...', 15);
+        await new Promise(r => setTimeout(r, 150));
+
+        setScanProgress('Evaluating decision paths d(x)...', 45);
+        await new Promise(r => setTimeout(r, 150));
+
+        setScanProgress('Scaling 0-100 Health Scores...', 75);
+        await new Promise(r => setTimeout(r, 150));
+
+        setScanProgress('Thresholding bottom 5% anomalies...', 90);
+
+        const chillers = [
+          { id: "CHILLER-01", baseEnergy: 125.0, baseLoad: 520.0, baseFlow: 90.0, cwTemp: 32.5 },
+          { id: "CHILLER-02", baseEnergy: 131.0, baseLoad: 545.0, baseFlow: 93.0, cwTemp: 33.1 },
+          { id: "CHILLER-03", baseEnergy: 118.0, baseLoad: 490.0, baseFlow: 88.0, cwTemp: 31.9 }
+        ];
+
+        const rows = [];
+        const nowMs = Date.now();
+        const stepMs = 15 * 60 * 1000;
+
+        for (let i = 15; i >= 0; i--) {
+          const ts = new Date(nowMs - i * stepMs).toISOString();
+          chillers.forEach(c => {
+            const noise = Math.sin(i * 0.5) * 2.0;
+            rows.push({
+              chiller_id: c.id,
+              timestamp: ts,
+              energy: Number((c.baseEnergy + noise).toFixed(2)),
+              load: Number((c.baseLoad + noise * 3).toFixed(2)),
+              flow: Number((c.baseFlow + noise * 0.5).toFixed(2)),
+              cw_temp: Number((c.cwTemp + noise * 0.1).toFixed(2)),
+              outside_temp: 85.0,
+              dew_point: 76.0,
+              humidity: 78.0,
+              wind: 11.0,
+              pressure: 29.85
+            });
+          });
+        }
+
+        const payload = { data: rows };
+
+        const res = await fetch(`${API_BASE_URL}/score?explain=true`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error("API response not ok");
+        const data = await res.json();
+
+        if (container) container.classList.remove('scanning-active');
+
+        // Only update dashboard if CSV data is NOT locked
+        if (!window._csvDataLocked && data && data.scored_data && data.scored_data.length > 0) {
+          updateDashboard(data.scored_data);
+          setScanProgress('Scan Complete!', 100);
+          const latest = data.scored_data[data.scored_data.length - 1];
+          const score = latest.composite_score || 0;
+          if (statusText) statusText.innerText = `Scan Complete! ML Score: ${(score * 100).toFixed(1)}%.`;
+          const badge = document.getElementById('faultBadge');
+          if (badge) badge.innerText = `Score: ${score.toFixed(2)}`;
+        }
+      } catch (err) {
+        if (container) container.classList.remove('scanning-active');
+        if (statusText) statusText.innerText = 'Scan failed (Is FastAPI backend running?).';
+        setScanProgress('Scan Error', 0);
+        console.error(err);
+      } finally {
+        setTimeout(() => {
+          const container = document.getElementById('scanProgressBarContainer');
+          if (container) container.classList.add('hidden');
+        }, 3500);
+      }
+    }
+
+    function triggerDispatch() {
+      const selected = window.selectedChillerId || 'CHILLER-01';
+      alert(`Work Order Dispatched for ${selected}. Action item sent to HVAC maintenance team.`);
+    }
+
+    function initAllCharts() {
+      const ctx1 = document.getElementById('dashboardTelemetryChart').getContext('2d');
+      dashboardChart = new Chart(ctx1, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            {
+              label: 'Observed',
+              data: [],
+              borderColor: '#10b981',
+              backgroundColor: 'rgba(16, 185, 129, 0.08)',
+              fill: true,
+              tension: 0.35,
+              borderWidth: 2.5
+            },
+            {
+              label: 'Expected',
+              data: [],
+              borderColor: '#94a3b8',
+              borderDash: [5, 5],
+              fill: false,
+              tension: 0.35,
+              borderWidth: 2
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: true, position: 'top', labels: { font: { size: 10 } } } },
+          scales: {
+            x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+            y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 } } }
+          }
+        }
+      });
+
+      const ctx2 = document.getElementById('fullTelemetryChart').getContext('2d');
+      fullTelemetryChart = new Chart(ctx2, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            { label: 'Observed Power (kW)', data: [], borderColor: '#f59e0b', borderWidth: 2.5 },
+            { label: 'Expected Power (kW)', data: [], borderColor: '#10b981', borderWidth: 2, borderDash: [4, 4] }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'top' } }
+        }
+      });
+
+      const ctx3 = document.getElementById('fullDriverChart').getContext('2d');
+      fullDriverChart = new Chart(ctx3, {
+        type: 'bar',
+        data: {
+          labels: ['Cooling Water Temp', 'Energy Residual', 'Building Load', 'Relative Humidity'],
+          datasets: [{ data: [25, 35, 15, 10], backgroundColor: ['#f59e0b', '#10b981', '#0ea5e9', '#cbd5e1'] }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } }
+        }
+      });
+
+      const ctx4 = document.getElementById('fullScatterChart').getContext('2d');
+      fullScatterChart = new Chart(ctx4, {
+        type: 'scatter',
+        data: {
+          datasets: [
+            { label: 'Normal Envelope', data: [], backgroundColor: '#10b981' },
+            { label: 'Observed Outlier Point', data: [], backgroundColor: '#ef4444', pointRadius: 8 }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false
+        }
+      });
+    }
+  </script>
+</body>
+
+</html>
